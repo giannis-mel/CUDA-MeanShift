@@ -67,7 +67,7 @@ Performance tests were conducted on a distributed system, comparing both shared 
 
 The shared memory implementation benefits significantly when the convergence criterion `e` is smaller, leading to more iterations and hence better performance. A graph of the results can be seen below.
 
-Moreover, performance test were conducted in a local pc with a gpu Nvidia GeForce GTX 1060. The produced results for `e` = 0.005 are in the table below:
+Moreover, performance tests were conducted in a local pc with Nvidia GeForce GTX 1060 as gpu. The produced results for `e` = 0.005 are in the table below:
 
 | Implementation | Execution Time |
 |----------------|----------------|
