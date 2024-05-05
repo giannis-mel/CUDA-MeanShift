@@ -5,7 +5,7 @@ This repository contains an implementation of the Mean Shift algorithm using CUD
 ## Prerequisites
 
 - GCC for compiling C code
-- NVIDIA CUDA Toolkit for compiling CUDA cod
+- NVIDIA CUDA Toolkit for compiling CUDA code
 
 ## Project Files Description
 
