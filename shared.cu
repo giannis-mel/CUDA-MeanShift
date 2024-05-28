@@ -1,3 +1,27 @@
+/*
+ ----------------------------------------------------------
+ | Title:      Mean Shift Clustering with CUDA (Shared)   |
+ | Author:     Giannis Meleziadis                         |
+ ----------------------------------------------------------
+ | Description:                                           |
+ |   CUDA implementation of Mean Shift clustering         |
+ |   on 600 2D points using shared memory.                |
+ |   Reads input, clusters using GPU, writes output,      |
+ |   and verifies against a reference.                    |
+ ----------------------------------------------------------
+ | Compilation:                                           |
+ |   nvcc shared.cu -o shared -O3 -lm                     |
+ ----------------------------------------------------------
+ | Execution:                                             |
+ |   ./shared 0.5                                         |
+ ----------------------------------------------------------
+ | Files:                                                 |
+ |   input.txt - Input points                             |
+ |   output.txt - Clustered output                        |
+ |   output_reference.txt - Reference for validation      |
+ ----------------------------------------------------------
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -6,17 +30,24 @@
 #include <cuda_runtime_api.h>
 #include <sys/time.h>
 #include <float.h>
+#include <assert.h>
 
 float k = 20;  // Factor to scale tolerance, compensating for numerical errors
 #define NUM_OF_POINTS 600
 #define DIMENSIONS 2
-#define BLOCK_SIZE 256  // Adjust based on the maximum threads per block your GPU supports
+#define BLOCK_SIZE 512  // Adjust based on the maximum threads per block your GPU supports
 
-//for compile : nvcc shared.cu -o shared -O3 -lm 
-//for run: ./shared 0.5
+inline cudaError_t checkCuda(cudaError_t result)
+{
+    if (result != cudaSuccess) {
+        fprintf(stderr, "CUDA Runtime Error: %s\n", cudaGetErrorString(result));
+        assert(result == cudaSuccess);
+    }
+    return result;
+}
 
 // CUDA kernel to calculate Euclidean distance between two points
-__device__ float distanceFunction(float point1[DIMENSIONS], float point2[DIMENSIONS]) {
+__device__ float distanceFunction(const float *point1, const float *point2) {
     float distance = 0;
     for (int i = 0; i < DIMENSIONS; i++) {
         distance += (point1[i] - point2[i]) * (point1[i] - point2[i]);
@@ -25,26 +56,27 @@ __device__ float distanceFunction(float point1[DIMENSIONS], float point2[DIMENSI
 }
 
 // CUDA kernel to calculate the weight using Gaussian kernel function
-__device__ float kernelFunction(float pointYk[DIMENSIONS], float arrayXi[DIMENSIONS]) {
+__device__ float kernelFunction(const float *pointYk, const float *arrayXi) {
     float s = 1;
     float distance = distanceFunction(pointYk, arrayXi);
-    return exp(-((distance * distance) / (2 * s * s)));
+    distance *= distance;
+    return exp(-((distance) / (2 * (s * s))));
 }
 
 // CUDA kernel to calculate the magnitude of movement vector
-__device__ float movedDistance(float moved[DIMENSIONS]) {
+__device__ float movedDistance(const float *moved) {
     float distance = 0;
     for (int i = 0; i < DIMENSIONS; i++) {
-        distance += moved[i] * moved[i];
+        distance += (moved[i]) * (moved[i]);
     }
     return sqrt(distance);
 }
 
 // Main kernel function that performs the MeanShift algorithm on given data points using shared memory
-__global__ void shiftingFunction(float *Ykplus1, float *Yk, float *X, float e) {
+__global__ void shiftingFunction(float *Ykplus1, float *Yk, const float *X, float e) {
     float s = 1;
     int index = blockIdx.x * blockDim.x + threadIdx.x;
-    if (index >= NUM_OF_POINTS) return;
+    if (index >= NUM_OF_POINTS) return;  // Ensure thread index is within bounds
 
     __shared__ float sharedX[NUM_OF_POINTS * DIMENSIONS];
 
@@ -68,12 +100,14 @@ __global__ void shiftingFunction(float *Ykplus1, float *Yk, float *X, float e) {
     }
     float weightFromGaussian = 0;
 
+    // Iteratively shift point until the movement is below the threshold 'e'
     while (movedDistance(moved) >= e) {
         // Load current point coordinates
         for (int i = 0; i < DIMENSIONS; i++) {
             Ypoint[i] = Yk[index * DIMENSIONS + i];
         }
         
+        // Reset sums for the new iteration
         for (int i = 0; i < DIMENSIONS; i++) {
             numerator[i] = 0;
         }
@@ -96,16 +130,14 @@ __global__ void shiftingFunction(float *Ykplus1, float *Yk, float *X, float e) {
 
         // Update the position of the current point using numerator, denominator
         for (int j = 0; j < DIMENSIONS; j++) {
-            Ykplus1[index * DIMENSIONS + j] = numerator[j] / denominator;
-        }
-
-        // Calculate the shift distance and update Yk for the next iteration
-        for (int j = 0; j < DIMENSIONS; j++) {
-            moved[j] = Ykplus1[index * DIMENSIONS + j] - Yk[index * DIMENSIONS + j];
-            Yk[index * DIMENSIONS + j] = Ykplus1[index * DIMENSIONS + j];
+            float newY = numerator[j] / denominator;
+            moved[j] = newY - Yk[index * DIMENSIONS + j];
+            Yk[index * DIMENSIONS + j] = newY;
+            Ykplus1[index * DIMENSIONS + j] = newY;
         }
     }
 }
+
 
 // Function to verify results
 int verifyResults(float *results, const char *refFileName, float tolerance) {
@@ -151,9 +183,9 @@ int main(int argc, char **argv) {
     arrayYkplus1 = (float *)malloc(nBytes);
 
     // Allocate memory for device arrays
-    cudaMalloc((void **)&deviceArrayStatic, nBytes);
-    cudaMalloc((void **)&deviceArrayYk, nBytes);
-    cudaMalloc((void **)&deviceArrayYkplus1, nBytes);
+    checkCuda(cudaMalloc((void **)&deviceArrayStatic, nBytes));
+    checkCuda(cudaMalloc((void **)&deviceArrayYk, nBytes));
+    checkCuda(cudaMalloc((void **)&deviceArrayYkplus1, nBytes));
 
     // Open input file
     FILE *myFile = fopen("input.txt", "r");
@@ -176,26 +208,32 @@ int main(int argc, char **argv) {
     fclose(myFile);
 
     // Transfer data from host to device
-    cudaMemcpy(deviceArrayStatic, arrayStatic, nBytes, cudaMemcpyHostToDevice);
-    cudaMemcpy(deviceArrayYk, arrayYk, nBytes, cudaMemcpyHostToDevice);
+    checkCuda(cudaMemcpy(deviceArrayStatic, arrayStatic, nBytes, cudaMemcpyHostToDevice));
+    checkCuda(cudaMemcpy(deviceArrayYk, arrayYk, nBytes, cudaMemcpyHostToDevice));
+
+    // GPU information
+    int deviceId;
+    cudaGetDevice(&deviceId);
+    cudaDeviceProp props;
+    checkCuda(cudaGetDeviceProperties(&props, deviceId));
+    int multiProcessorCount = props.multiProcessorCount;
     
-    // Define block and grid sizes
-    dim3 blockSize(BLOCK_SIZE);
-    dim3 gridSize((NUM_OF_POINTS + BLOCK_SIZE - 1) / BLOCK_SIZE);
+    int threadsPerBlock = BLOCK_SIZE;
+    int numberOfBlocks = 32 * multiProcessorCount;
 
     struct timeval startwtime, endwtime;
     gettimeofday(&startwtime, NULL);
 
     // Launch kernel
-    shiftingFunction<<<gridSize, blockSize>>>(deviceArrayYkplus1, deviceArrayYk, deviceArrayStatic, e);
-    cudaDeviceSynchronize();
+    shiftingFunction<<<numberOfBlocks, threadsPerBlock>>>(deviceArrayYkplus1, deviceArrayYk, deviceArrayStatic, e);
+    checkCuda(cudaDeviceSynchronize());
 
     gettimeofday(&endwtime, NULL);
     float seq_time = (float)((endwtime.tv_usec - startwtime.tv_usec)/1.0e6 + endwtime.tv_sec - startwtime.tv_sec);
     printf("Wall clock time (using cuda - shared memory utilization) = %f ms\n", 1000 * seq_time);
 
     // Copy results back to host
-    cudaMemcpy(arrayYk, deviceArrayYkplus1, nBytes, cudaMemcpyDeviceToHost);
+    checkCuda(cudaMemcpy(arrayYk, deviceArrayYkplus1, nBytes, cudaMemcpyDeviceToHost));
 
     // Write results to output.txt
     FILE *f = fopen("output.txt", "w");
@@ -218,9 +256,9 @@ int main(int argc, char **argv) {
     free(arrayStatic);
     free(arrayYk);
     free(arrayYkplus1);
-    cudaFree(deviceArrayStatic);
-    cudaFree(deviceArrayYk);
-    cudaFree(deviceArrayYkplus1);
+    checkCuda(cudaFree(deviceArrayStatic));
+    checkCuda(cudaFree(deviceArrayYk));
+    checkCuda(cudaFree(deviceArrayYkplus1));
 
     return 0;
 }

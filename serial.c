@@ -1,3 +1,27 @@
+/*
+ ----------------------------------------------------------
+ | Title:      Mean Shift Clustering (Serial)             |
+ | Author:     Giannis Meleziadis                         |
+ ----------------------------------------------------------
+ | Description:                                           |
+ |   Serial implementation of Mean Shift clustering       |
+ |   on 600 2D points. Runs on the CPU, reads input,      |
+ |   performs clustering, writes output, and verifies     |
+ |   against a reference.                                 |
+ ----------------------------------------------------------
+ | Compilation:                                           |
+ |   gcc serial.c -o serial -O3 -lm                       |
+ ----------------------------------------------------------
+ | Execution:                                             |
+ |   ./serial 0.5                                         |
+ ----------------------------------------------------------
+ | Files:                                                 |
+ |   input.txt - Input points                             |
+ |   output.txt - Clustered output                        |
+ |   output_reference.txt - Reference for validation      |
+ ----------------------------------------------------------
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -89,14 +113,12 @@ void shiftFunction(float *Ykplus1, float *Yk, float *X, float e, int index) {
         }
 
         // Update the position of the current point using numerator, denominator
+        // and calculate the shift distance for the next iteration
         for (int j = 0; j < DIMENSIONS; j++) {
-            Ykplus1[index * DIMENSIONS + j] = numerator[j] / denominator;
-        }
-
-        // Calculate the shift distance and update Yk for the next iteration
-        for (int j = 0; j < DIMENSIONS; j++) {
-            moved[j] = Ykplus1[index * DIMENSIONS + j] - Yk[index * DIMENSIONS + j];
-            Yk[index * DIMENSIONS + j] = Ykplus1[index * DIMENSIONS + j];
+            float newY = numerator[j] / denominator;
+            moved[j] = newY - Yk[index * DIMENSIONS + j];
+            Yk[index * DIMENSIONS + j] = newY;
+            Ykplus1[index * DIMENSIONS + j] = newY;
         }
     }
 }
