@@ -28,9 +28,6 @@
 #include <sys/time.h>
 #include <float.h>
 
-// Compile with: gcc serial.c -o serial -lm 
-// Run with: ./serial 0.5
-
 float s = 1;
 float k = 20;  // Factor to scale tolerance, compensating for numerical errors
 #define NUM_OF_POINTS 600
