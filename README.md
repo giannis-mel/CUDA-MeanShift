@@ -77,7 +77,7 @@ Moreover, performance tests were conducted in a local pc with Nvidia GeForce GTX
 
 ## Graphical Analysis
 
-![Execution Times Graph](https://github.com/giannis-mel/Parallel-and-Destributed-Systems/blob/master/Mean%20Shift%20algorithm%20implementation%20using%20CUDA/graph.png)
+<img src="graph.png" alt="ExecutionTimes" width="600"/>
 
 The graph above visualizes the execution times, demonstrating the advantages of the shared memory implementation, particularly for smaller values of `e`.
 
