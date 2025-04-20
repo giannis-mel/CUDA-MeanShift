@@ -6,6 +6,7 @@ This repository contains an implementation of the Mean Shift algorithm using CUD
 
 - GCC for compiling C code
 - NVIDIA CUDA Toolkit for compiling CUDA code
+- Docker (if you want to run in container)
 
 ## Project Files Description
 
@@ -16,8 +17,10 @@ This repository contains an implementation of the Mean Shift algorithm using CUD
 - __output_reference.txt__ - Reference data used to verify the algorithm's output.
 - __output.txt__ - Contains the results from the most recent run of any implementation.
 - __graph.png__ - Graph depicting the results of a test run in a distributed system.
+- __Makefile__ - Build rules and run targets with GPU flags.
+- __Dockerfile__ - Multi-stage build for a minimal CUDA runtime image.
 
-## Compilation
+## Building and Run Locally
 
 Run all programs with:
 ```bash
@@ -50,6 +53,24 @@ make run_shared INPUT=0.05
 ```
 If not specified, the default value of 0.5 is used.
 
+## Using Docker
+
+Build the Docker image:
+```bash
+docker build -t mean-shift-cuda .
+```
+
+Run with default parameters:
+```bash
+docker run --gpus all mean-shift-cuda
+```
+- This runs `make run_all` inside the container, using `INPUT=0.5`.
+
+Override commands example:
+```bash
+docker run --gpus all mean-shift-cuda make run_shared INPUT=0.01
+```
+
 ## Implementation Details
 
 ### Data Representation
@@ -63,23 +84,33 @@ If not specified, the default value of 0.5 is used.
 
 ## Performance Analysis
 
-Performance tests were conducted on a distributed system, comparing both shared and non-shared memory implementations under various settings of the initial parameter `e`.
+Performance tests were conducted on a distributed system, comparing both shared and non-shared memory implementations across a range of convergence thresholds `e`.
 
-The shared memory implementation benefits significantly when the convergence criterion `e` is smaller, leading to more iterations and hence better performance. A graph of the results can be seen below.
-
-Moreover, performance tests were conducted in a local pc with Nvidia GeForce GTX 1060 as gpu. The produced results for `e` = 0.005 are in the table below:
-
-| Implementation | Execution Time |
-|----------------|----------------|
-| Serial         | 20.11 ms       |
-| Non-shared     | 2.04 ms        |
-| Shared         | 1.06 ms        |
-
-## Graphical Analysis
+The shared memory implementation benefits significantly when the convergence criterion `e` is smaller, leading to more iterations and hence better performance. A graph of the results can be seen below:
 
 <img src="graph.png" alt="ExecutionTimes" width="600"/>
 
 The graph above visualizes the execution times, demonstrating the advantages of the shared memory implementation, particularly for smaller values of `e`.
+
+Moreover, performance tests were conducted in two different computers:
+
+- __System A (Local):__ Intel Core i5-8300H @ 2.30 GHz + GeForce GTX 1060
+- __System B (Docker):__ Intel Core i9-14900HX @ 2.20 GHz + GeForce RTX 5060 Ti
+
+The produced results between the two systems for `e` = 0.005 are in the table below:
+
+| Implementation | System A (GTX 1060) | System B (RTX 5060 Ti) | Speedup (A→B) |
+|---------------:|---------------------|------------------------|---------------|
+| **Serial**     |            20.11 ms |                9.16 ms |         2.20× |
+| **Non‑shared** |             2.04 ms |                0.75 ms |         2.72× |
+| **Shared**     |             1.06 ms |                0.61 ms |         1.74× |
+
+CUDA implementations compared to the serial baseline on each system:
+
+| Implementation | System A Speedup (Serial → Parallel) | System B Speedup (Serial → Parallel) |
+|---------------:|--------------------------------------|--------------------------------------|
+| **Non‑shared** |                  20.11 / 2.04 ≈ 9.9× |                  9.16 / 0.75 ≈ 12.2× |
+| **Shared**     |                 20.11 / 1.06 ≈ 19.0× |                  9.16 / 0.61 ≈ 15.0× |
 
 ## Conclusions
 

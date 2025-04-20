@@ -1,55 +1,51 @@
-# Makefile to compile and run programs
+# Compiler configurations
+CC        := gcc
+NVCC      := nvcc
 
-# Compiler and linker configurations
-CC=gcc
-NVCC=nvcc
-CFLAGS=-lm
-NVCCFLAGS=-O3 -lm
+# CUDA architectures: compile for common GPUs and include PTX fallback
+CUDA_ARCH_FLAGS := \
+  -gencode arch=compute_61,code=sm_61 \
+  -gencode arch=compute_75,code=sm_75 \
+  -gencode arch=compute_86,code=sm_86 \
+  -gencode arch=compute_86,code=compute_86
 
-# Target binaries
-SERIAL=serial
-NONSHARED=nonshared
-SHARED=shared
+CFLAGS    := -lm
+NVCCFLAGS := -O3 -lm $(CUDA_ARCH_FLAGS)
 
-# Input argument for running the binaries, default value
-INPUT?=0.5
+# Binaries
+SERIAL    := serial
+NONSHARED := nonshared
+SHARED    := shared
 
-# Default target
-all: compile_all
+# Default convergence input
+INPUT     ?= 0.5
 
-# Compile all programs
-compile_all: $(SERIAL) $(NONSHARED) $(SHARED)
+# Build all binaries
+all: $(SERIAL) $(NONSHARED) $(SHARED)
 
-# Compile serial.c
 $(SERIAL): serial.c
-	$(CC) serial.c -o $(SERIAL) $(CFLAGS)
+	$(CC) $< -o $@ $(CFLAGS)
 
-# Compile nonshared.cu
 $(NONSHARED): nonshared.cu
-	$(NVCC) nonshared.cu -o $(NONSHARED) $(NVCCFLAGS)
+	$(NVCC) $< -o $@ $(NVCCFLAGS)
 
-# Compile shared.cu
 $(SHARED): shared.cu
-	$(NVCC) shared.cu -o $(SHARED) $(NVCCFLAGS)
+	$(NVCC) $< -o $@ $(NVCCFLAGS)
 
-# Run all programs
+# Run all implementations (requires that binaries are already built)
 run_all: run_serial run_nonshared run_shared
 
-# Run serial
-run_serial: $(SERIAL)
+run_serial:
 	./$(SERIAL) $(INPUT)
 
-# Run nonshared
-run_nonshared: $(NONSHARED)
+run_nonshared:
 	./$(NONSHARED) $(INPUT)
 
-# Run shared
-run_shared: $(SHARED)
+run_shared:
 	./$(SHARED) $(INPUT)
 
-# Clean up
+# Clean generated binaries
 clean:
 	rm -f $(SERIAL) $(NONSHARED) $(SHARED)
 
-# PHONY targets
-.PHONY: all clean run_all run_serial run_nonshared run_shared compile_all
+.PHONY: all run_all run_serial run_nonshared run_shared clean
