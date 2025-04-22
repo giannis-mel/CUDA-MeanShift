@@ -10,7 +10,7 @@ This repository contains an implementation of the Mean Shift algorithm using CUD
 
 ## Project Files Description
 
-- __serial.py__ - Serial implementation of the Mean Shift algorithm, serving as the baseline for comparison.
+- __serial.c__ - Serial implementation of the Mean Shift algorithm, serving as the baseline for comparison.
 - __nonshared.cu__ - Parallel implementation without the utilization of shared memory.
 - __shared.cu__ - Parallel implementation that utilizes shared memory to increase speed.
 - __input.txt__ - Input data for the algorithm.
